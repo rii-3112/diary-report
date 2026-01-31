@@ -1,4 +1,4 @@
-module backend
+module github.com/rii-3112/diary-report/backend
 
 go 1.25.1
 
