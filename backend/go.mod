@@ -1,4 +1,4 @@
-module diary-backend
+module backend
 
 go 1.25.1
 

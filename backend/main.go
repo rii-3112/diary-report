@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/rii-3112/dairy-report/backend/db" // 自分のmodule名に合わせてね
+	"github.com/rii-3112/diary-report/backend/db" // 自分のmodule名に合わせてね
 )
 
 func main() {
