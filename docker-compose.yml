@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: diary-db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: diary_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d # 初回起動時にSQLを実行
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: diary-app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    environment:
+      DB_SOURCE: "postgresql://user:password@db:5432/diary_db?sslmode=disable"

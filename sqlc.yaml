@@ -1,0 +1,10 @@
+version: "2"
+sql:
+  - schema: "infra/postgres/init/1_init.sql" # 先ほど作ったSQLの場所
+    queries: "query.sql"                    # これから書くクエリの場所
+    engine: "postgresql"
+    gen:
+      go:
+        package: "db"                       # 生成されるGoのパッケージ名
+        out: "db"                           # 出力先フォルダ
+        emit_json_tags: true                # Next.jsに返す時に便利なJSONタグを付ける
