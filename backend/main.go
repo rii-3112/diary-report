@@ -2,38 +2,62 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-
-	"github.com/jackc/pgx/v5"
-	"github.com/rii-3112/diary-report/backend/db" // 自分のmodule名に合わせてね
+	
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/rii-3112/diary-report/backend/db"
 )
 
 func main() {
-	ctx := context.Background()
-	// Docker Composeで設定した接続情報
-	connStr := "postgresql://user:password@localhost:5432/diary_db?sslmode=disable"
+	e := echo.New()
 
-	conn, err := pgx.Connect(ctx, connStr)
+	// ログを表示してくれる便利な設定
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+
+	// 1. DB接続設定
+	ctx := context.Background()
+	connStr := os.Getenv("DB_SOURCE")
+	if connStr == "" {
+		connStr = "postgresql://user:password@localhost:5432/diary_db?sslmode=disable"
+	}
+
+	dbConn, err := sql.Open("pgx", connStr)
 	if err != nil {
 		log.Fatalf("DB接続失敗: %v", err)
 	}
-	defer conn.Close(ctx)
+	defer dbConn.Close()
 
-	// sqlcが生成したクエリ実行用の構造体
-	queries := db.New(conn)
+	queries := db.New(dbConn)
 
-	// テスト：ユーザーを作ってみる
-	user, err := queries.CreateUser(ctx, db.CreateUserParams{
-		GoogleId: "google-test-id-123",
-		Email:    "test@example.com",
-		Name:     "テストユーザー",
+	// 2. エンドポイント（疎通確認用）
+	// ブラウザで http://localhost:8080/hello を開くと見れます
+	e.GET("/hello", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]string{
+			"message": "Hello! Diary Backend is working!",
+		})
 	})
 
-	if err != nil {
-		log.Fatalf("ユーザー作成失敗: %v", err)
-	}
+	// 3. テスト用のユーザー作成API
+	// POSTリクエストを送ると、DBにユーザーを保存します
+	e.POST("/users", func(c echo.Context) error {
+		user, err := queries.CreateUser(ctx, db.CreateUserParams{
+			GoogleID: "test-id-" + fmt.Sprint(os.Getpid()),
+			Email:    "test@example.com",
+			Name:     sql.NullString{String: "Gopher", Valid: true},
+		})
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, err.Error())
+		}
+		return c.JSON(http.StatusCreated, user)
+	})
 
-	fmt.Printf("ユーザー作成成功！ ID: %s, Name: %s\n", user.ID, user.Name)
+	// サーバー起動 (8080ポートで待ち受け)
+	e.Logger.Fatal(e.Start(":8080"))
 }
