@@ -8,9 +8,58 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const createReport = `-- name: CreateReport :one
+INSERT INTO reports (
+    user_id, title, content, learning_notes, is_habit_done, is_public, public_token, submitted_date
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8
+)
+RETURNING id, user_id, title, content, learning_notes, is_habit_done, is_public, public_token, submitted_date, created_at, updated_at
+`
+
+type CreateReportParams struct {
+	UserID        uuid.UUID      `json:"user_id"`
+	Title         string         `json:"title"`
+	Content       sql.NullString `json:"content"`
+	LearningNotes sql.NullString `json:"learning_notes"`
+	IsHabitDone   sql.NullBool   `json:"is_habit_done"`
+	IsPublic      sql.NullBool   `json:"is_public"`
+	PublicToken   string         `json:"public_token"`
+	SubmittedDate time.Time      `json:"submitted_date"`
+}
+
+func (q *Queries) CreateReport(ctx context.Context, arg CreateReportParams) (Report, error) {
+	row := q.db.QueryRowContext(ctx, createReport,
+		arg.UserID,
+		arg.Title,
+		arg.Content,
+		arg.LearningNotes,
+		arg.IsHabitDone,
+		arg.IsPublic,
+		arg.PublicToken,
+		arg.SubmittedDate,
+	)
+	var i Report
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.Content,
+		&i.LearningNotes,
+		&i.IsHabitDone,
+		&i.IsPublic,
+		&i.PublicToken,
+		&i.SubmittedDate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (google_id, email, name)
@@ -37,6 +86,31 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const getReportByPublicToken = `-- name: GetReportByPublicToken :one
+SELECT id, user_id, title, content, learning_notes, is_habit_done, is_public, public_token, submitted_date, created_at, updated_at FROM reports
+WHERE public_token = $1 AND is_public = true
+LIMIT 1
+`
+
+func (q *Queries) GetReportByPublicToken(ctx context.Context, publicToken string) (Report, error) {
+	row := q.db.QueryRowContext(ctx, getReportByPublicToken, publicToken)
+	var i Report
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Title,
+		&i.Content,
+		&i.LearningNotes,
+		&i.IsHabitDone,
+		&i.IsPublic,
+		&i.PublicToken,
+		&i.SubmittedDate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getUser = `-- name: GetUser :one
 SELECT id, google_id, email, name, created_at FROM users
 WHERE id = $1 LIMIT 1
@@ -53,4 +127,45 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listReportsByUserID = `-- name: ListReportsByUserID :many
+SELECT id, user_id, title, content, learning_notes, is_habit_done, is_public, public_token, submitted_date, created_at, updated_at FROM reports
+WHERE user_id = $1
+ORDER BY submitted_date DESC
+`
+
+func (q *Queries) ListReportsByUserID(ctx context.Context, userID uuid.UUID) ([]Report, error) {
+	rows, err := q.db.QueryContext(ctx, listReportsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Report
+	for rows.Next() {
+		var i Report
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Title,
+			&i.Content,
+			&i.LearningNotes,
+			&i.IsHabitDone,
+			&i.IsPublic,
+			&i.PublicToken,
+			&i.SubmittedDate,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

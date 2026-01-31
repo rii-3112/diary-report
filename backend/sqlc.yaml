@@ -1,3 +1,4 @@
+# スキーマ（infra/postgres/init/1_init.sql）とクエリ（query.sql）の場所、生成先（db パッケージ）、PostgreSQL 向けであることを指定。
 version: "2"
 sql:
   - schema: "infra/postgres/init/1_init.sql" # 先ほど作ったSQLの場所
